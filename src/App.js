@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import React, { useRef, Suspense } from "react";
+import React, { useRef, Suspense, useEffect, useState, useCallback } from "react";
 import { Canvas, extend, useFrame, useLoader } from "@react-three/fiber";
 import { shaderMaterial } from "@react-three/drei";
 import glsl from "babel-plugin-glsl/macro";
@@ -11,6 +11,7 @@ const WaveShaderMaterial = shaderMaterial(
     uTime: 0,
     uColor: new THREE.Color(0.0, 0.0, 0.0),
     uTexture: new THREE.Texture(),
+    uHover: 0.
   },
   // Vertex Shader
   glsl`
@@ -20,7 +21,7 @@ const WaveShaderMaterial = shaderMaterial(
     varying float vWave;
 
     uniform float uTime;
-
+    uniform float uHover;
     #pragma glslify: snoise3 = require(glsl-noise/simplex/3d);
 
 
@@ -29,11 +30,10 @@ const WaveShaderMaterial = shaderMaterial(
 
       vec3 pos = position;
       float noiseFreq = 2.0;
-      float noiseAmp = 0.4;
-      vec3 noisePos = vec3(pos.x * noiseFreq + uTime, pos.y, pos.z);
+      float noiseAmp = 0.1;
+      vec3 noisePos = vec3(pos.x * noiseFreq + (uTime * uHover), pos.y * noiseFreq, pos.z);
       pos.z += snoise3(noisePos) * noiseAmp;
       vWave = pos.z;
-
       gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);  
     }
   `,
@@ -49,7 +49,7 @@ const WaveShaderMaterial = shaderMaterial(
     varying float vWave;
 
     void main() {
-      float wave = vWave * 0.2;
+      float wave = vWave * .5;
       vec3 texture = texture2D(uTexture, vUv + wave).rgb;
       gl_FragColor = vec4(texture, 1.0); 
     }
@@ -58,27 +58,37 @@ const WaveShaderMaterial = shaderMaterial(
 
 extend({ WaveShaderMaterial });
 
-const Wave = () => {
+
+
+
+
+
+const Wave = ({ y, x }) => {
+  const [hovered, setHover] = useState(0.5)
+  const hover = useCallback(() => setHover(0.5), [])
+  const unhover = useCallback(() => setHover(0.0), [])
   const ref = useRef();
+  const meshRef = useRef();
   useFrame(({ clock }) => (ref.current.uTime = clock.getElapsedTime()));
 
   const [image] = useLoader(THREE.TextureLoader, [
-    "https://images.unsplash.com/photo-1604011092346-0b4346ed714e?ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&ixlib=rb-1.2.1&auto=format&fit=crop&w=1534&q=80",
+    "/willToon.png",
   ]);
 
+  console.log(y)
   return (
-    <mesh>
-      <planeBufferGeometry args={[0.4, 0.6, 16, 16]} />
-      <waveShaderMaterial uColor={"hotpink"} ref={ref} uTexture={image} />
+    <mesh ref={meshRef} position={[x, y, 0]} onClick={hover} onUnhover={unhover}>
+      <planeBufferGeometry args={[0.8, 0.8, 64, 64]} />
+      <waveShaderMaterial uColor={"hotpink"} ref={ref} uTexture={image} uHover={hovered} />
     </mesh>
   );
 };
 
 const Scene = () => {
   return (
-    <Canvas camera={{ fov: 12, position: [0, 0, 5] }}>
+    <Canvas camera={{ fov: 16, position: [0, 0, 5] }}>
       <Suspense fallback={null}>
-        <Wave />
+        <Wave y={-0.4} x={0} />
       </Suspense>
     </Canvas>
   );
@@ -87,8 +97,8 @@ const Scene = () => {
 const App = () => {
   return (
     <>
-      <h1>POMADA MODELADORA</h1>
       <Scene />
+
     </>
   );
 };
